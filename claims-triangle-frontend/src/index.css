@@ -1,0 +1,24 @@
+@import 'tailwindcss';
+
+@layer base {
+  :root {
+    color-scheme: light;
+    --radius: 0.5rem;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased;
+    font-feature-settings: 'rlig' 1, 'calt' 1;
+  }
+}
+
+/* Spreadsheet: crisp numeric alignment */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}

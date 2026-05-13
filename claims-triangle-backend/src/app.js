@@ -10,10 +10,25 @@ const triangleRoute = require('./routes/triangle');
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000', process.env.FRONTEND_URL].filter(Boolean),
-  credentials: true,
-}));
+const defaultOrigins = ['http://localhost:5173', 'http://localhost:3000'];
+const extraOrigins = (process.env.FRONTEND_ORIGINS || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+const allowedOrigins = new Set(
+  [...defaultOrigins, process.env.FRONTEND_URL, ...extraOrigins].filter(Boolean)
+);
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+      if (process.env.NODE_ENV !== 'production') return callback(null, true);
+      return callback(null, false);
+    },
+    credentials: true,
+  })
+);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 

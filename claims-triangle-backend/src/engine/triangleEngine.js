@@ -60,7 +60,7 @@ function scaleValue(value, scale, decimals) {
 
 function buildTriangle(rows, mapping, params) {
   const { granularity = 'monthly', metric = 'paid', filters = {}, startPeriod = null,
-    endPeriod = null, maxDelay = null, scale = 'units', decimals = 0 } = params;
+    endPeriod = null, minDelay = null, maxDelay = null, scale = 'units', decimals = 0 } = params;
 
   const filtered = rows.filter(row =>
     passesGranularityFlag(row, mapping, granularity) &&
@@ -75,6 +75,7 @@ function buildTriangle(rows, mapping, params) {
     const delay = getDelayKey(row, mapping, granularity);
     const value = getMetricValue(row, mapping, metric);
     if (inception === null || isNaN(delay)) return;
+    if (minDelay !== null && delay < minDelay) return;
     if (maxDelay !== null && delay > maxDelay) return;
     inceptionSet.add(inception);
     delaySet.add(delay);

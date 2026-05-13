@@ -23,15 +23,22 @@ router.post('/:projectId', async (req, res, next) => {
     const p       = projRes.data.parameters;
     const params  = req.body;
 
+    const parsedMinDelay = Number(params.minDelay);
+    const parsedMaxDelay = Number(params.maxDelay);
+    const projectMaxDelay = Number(p.maxDelay);
+
     const engineParams = {
       granularity: params.granularity || 'monthly',
       metric:      params.metric      || 'paid',
       filters:     params.filters     || {},
       scale:       params.scale       || 'units',
       decimals:    params.decimals    ?? 0,
-      startPeriod: p.startPeriod || null,
-      endPeriod:   p.endPeriod   || null,
-      maxDelay:    Number(p.maxDelay) || null,
+      startPeriod: params.startPeriod || p.startPeriod || null,
+      endPeriod:   params.endPeriod   || p.endPeriod   || null,
+      minDelay:    Number.isFinite(parsedMinDelay) ? parsedMinDelay : null,
+      maxDelay:    Number.isFinite(parsedMaxDelay)
+        ? parsedMaxDelay
+        : (Number.isFinite(projectMaxDelay) ? projectMaxDelay : null),
     };
 
     const triangle = buildTriangle(rows, mapping, engineParams);
