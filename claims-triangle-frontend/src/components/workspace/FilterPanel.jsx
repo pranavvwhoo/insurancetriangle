@@ -1,9 +1,8 @@
 import { useMemo, useState } from 'react';
-import { Filter, PanelLeftClose, PanelLeft, Search } from 'lucide-react';
+import { Filter, PanelLeftClose, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -97,26 +96,32 @@ export function FilterPanel({
   const level2 = options?.level2 || [];
 
   return (
-    <Collapsible
-      open={open}
-      onOpenChange={onOpenChange}
+    <aside
+      aria-hidden={!open}
       className={cn(
-        'flex min-h-0 shrink-0 flex-col border-r border-slate-200 bg-white transition-[width] duration-200',
-        open ? 'min-w-0 md:w-[320px]' : 'md:w-[52px]'
+        'flex min-h-0 min-w-0 shrink-0 flex-col border-r border-slate-200 bg-white overflow-hidden transition-all duration-300 ease-in-out resize-x overflow-auto',
+        open
+          ? 'w-full md:w-[320px] opacity-100 visible pointer-events-auto'
+          : 'w-0 md:w-0 opacity-0 invisible pointer-events-none'
       )}
+      style={open ? { minWidth: 280, maxWidth: 460 } : { minWidth: 0, maxWidth: 0 }}
     >
       <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-3 py-2">
         <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
           <Filter className="h-4 w-4 text-cyan-600" />
           Filters
         </div>
-        <CollapsibleTrigger asChild>
-          <Button variant="ghost" size="icon" className="shrink-0" aria-label="Toggle filters panel">
-            {open ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeft className="h-4 w-4" />}
-          </Button>
-        </CollapsibleTrigger>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="shrink-0"
+          aria-label="Close filters panel"
+          onClick={() => onOpenChange(false)}
+        >
+          <PanelLeftClose className="h-4 w-4" />
+        </Button>
       </div>
-      <CollapsibleContent className="min-h-0 flex-1 data-[state=closed]:hidden">
+      <div className="min-h-0 flex-1">
         <Card className="m-2 border-slate-200 bg-white shadow-none">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">Segmentation</CardTitle>
@@ -159,7 +164,7 @@ export function FilterPanel({
             </Button>
           </CardContent>
         </Card>
-      </CollapsibleContent>
-    </Collapsible>
+      </div>
+    </aside>
   );
 }

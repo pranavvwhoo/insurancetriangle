@@ -29,7 +29,7 @@ export function ControlsPanel({
   disabled,
 }) {
   return (
-    <aside className="flex w-full shrink-0 flex-col gap-3 border-l border-slate-200 bg-white p-3 md:w-[300px] lg:w-[320px]">
+    <aside className="flex w-full shrink-0 flex-col gap-3 border-l border-slate-200 bg-white p-3 md:w-[300px] lg:w-[320px] md:resize-x overflow-auto" style={{ minWidth: 260, maxWidth: 520 }}>
       <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
         <SlidersHorizontal className="h-4 w-4 text-cyan-600" />
         Display & aggregation

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Filter, RefreshCw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,6 +8,7 @@ import { ControlsPanel } from '@/components/workspace/ControlsPanel';
 import { DataMappingDialog } from '@/components/workspace/DataMappingDialog';
 import { FilterPanel } from '@/components/workspace/FilterPanel';
 import { NewProjectDialog } from '@/components/workspace/NewProjectDialog';
+import { ProjectHomePage } from '@/components/workspace/ProjectHomePage';
 import { Ribbon } from '@/components/workspace/Ribbon';
 import { TriangleGrid } from '@/components/workspace/TriangleGrid';
 import { projectsApi, triangleApi } from '@/lib/api';
@@ -44,12 +45,14 @@ export function AnalyticsWorkspace() {
   const [autoSave, setAutoSave] = useState(true);
 
   const [triangle, setTriangle] = useState(null);
+  const [triangleMeta, setTriangleMeta] = useState(null);
   const [triangleLoading, setTriangleLoading] = useState(false);
   const [triangleError, setTriangleError] = useState(null);
 
   const [newProjectOpen, setNewProjectOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   /** Bump after uploads so triangle refetches even if slice controls are unchanged */
   const [dataRevision, setDataRevision] = useState(0);
@@ -113,10 +116,10 @@ export function AnalyticsWorkspace() {
           setScale(vsData.scale || 'units');
           setDecimals(clampDecimals(vsData.decimals ?? 0));
           const f = vsData.filters || {};
-          setFilters({
+          setFilters(sanitizeFilters({
             level1: Array.isArray(f.level1) ? f.level1 : [],
             level2: Array.isArray(f.level2) ? f.level2 : [],
-          });
+          }, fo.options || { level1: [], level2: [] }));
         }
       } catch (e) {
         if (!cancelled) setTriangleError(e.message);
@@ -151,10 +154,14 @@ export function AnalyticsWorkspace() {
           maxDelay,
         };
         const r = await triangleApi.build(selectedProjectId, body);
-        if (!cancelled) setTriangle(r.triangle || null);
+        if (!cancelled) {
+          setTriangle(r.triangle || null);
+          setTriangleMeta(r.triangle?.meta || null);
+        }
       } catch (e) {
         if (!cancelled) {
           setTriangle(null);
+          setTriangleMeta(null);
           setTriangleError(e.message);
         }
       } finally {
@@ -206,6 +213,8 @@ export function AnalyticsWorkspace() {
     setProjects((list) => [p, ...list.filter((x) => x.id !== p.id)]);
     setSelectedProjectId(p.id);
     await refreshProjects();
+    // After creating a project, prompt the user to upload data and map columns
+    setUploadOpen(true);
   }
 
   async function handleSaveWorkspace() {
@@ -224,34 +233,83 @@ export function AnalyticsWorkspace() {
     }
   }
 
+  async function handleDeleteProject() {
+    if (!selectedProjectId) return;
+    const ok = window.confirm('Delete this project and all imported data? This cannot be undone. Continue?');
+    if (!ok) return;
+    setDeleting(true);
+    try {
+      await projectsApi.remove(selectedProjectId);
+      await refreshProjects();
+      handleExitProject();
+    } catch (e) {
+      setTriangleError(e.message || String(e));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  function sanitizeFilters(filters, options) {
+    return {
+      level1: Array.isArray(filters.level1)
+        ? filters.level1.filter((value) => options.level1.includes(value))
+        : [],
+      level2: Array.isArray(filters.level2)
+        ? filters.level2.filter((value) => options.level2.includes(value))
+        : [],
+    };
+  }
+
   async function refreshFiltersOnly() {
     if (!selectedProjectId) return;
     try {
       const fo = await triangleApi.filters(selectedProjectId);
-      setFilterOptions(fo.options || { level1: [], level2: [] });
+      const nextOptions = fo.options || { level1: [], level2: [] };
+      setFilterOptions(nextOptions);
+      setFilters((current) => sanitizeFilters(current, nextOptions));
     } catch {
       /* ignore */
     }
   }
 
+  function handleResetFilters() {
+    setFilters({ level1: [], level2: [] });
+    setStartPeriod(null);
+    setEndPeriod(null);
+    setMinDelay(null);
+    setMaxDelay(null);
+  }
+
   const mappingSaved = Boolean(detail?.mapping?.mapping);
   const projectName = detail?.project?.name || projects.find((p) => p.id === selectedProjectId)?.name;
+
+  function handleExitProject() {
+    setSelectedProjectId(null);
+    setDetail(null);
+    setFilters({ level1: [], level2: [] });
+    setFilterOptions({ level1: [], level2: [] });
+    setTriangle(null);
+    setTriangleError(null);
+    setStartPeriod(null);
+    setEndPeriod(null);
+    setMinDelay(null);
+    setMaxDelay(null);
+    setFiltersOpen(true);
+  }
 
   return (
     <TooltipProvider delayDuration={250}>
       <div className="flex min-h-screen flex-col overflow-auto bg-slate-50">
-        <Ribbon
-          section={section}
-          onSectionChange={setSection}
-          projects={projects}
-          selectedProjectId={selectedProjectId}
-          onProjectChange={setSelectedProjectId}
-          onNewProject={() => setNewProjectOpen(true)}
-          onOpenUpload={() => setUploadOpen(true)}
-          onSaveWorkspace={handleSaveWorkspace}
-          saving={saving}
-          loadingProjects={loadingProjects}
-        />
+        {selectedProjectId ? (
+          <Ribbon
+            projectName={projectName}
+            onSaveWorkspace={handleSaveWorkspace}
+            onExitProject={handleExitProject}
+            onDeleteProject={handleDeleteProject}
+            saving={saving}
+            deleting={deleting}
+          />
+        ) : null}
 
         <NewProjectDialog open={newProjectOpen} onOpenChange={setNewProjectOpen} onCreated={handleCreateProject} />
 
@@ -264,10 +322,65 @@ export function AnalyticsWorkspace() {
             const bundle = await projectsApi.get(selectedProjectId);
             setDetail(bundle);
             await refreshFiltersOnly();
+            // Immediately request a triangle build so the UI shows the imported data
+            try {
+              setTriangleLoading(true);
+              setTriangleError(null);
+              const body = {
+                granularity,
+                metric,
+                scale,
+                decimals: clampDecimals(decimals),
+                filters: {
+                  level1: filters.level1,
+                  level2: filters.level2,
+                },
+                startPeriod,
+                endPeriod,
+                minDelay,
+                maxDelay,
+              };
+              const resp = await triangleApi.build(selectedProjectId, body).catch((e) => {
+                throw e;
+              });
+              setTriangle(resp.triangle || null);
+              setTriangleMeta(resp.triangle?.meta || null);
+              const meta = resp.triangle?.meta;
+              console.debug('Triangle build response meta:', meta);
+              if (meta) {
+                if ((meta.totalRows ?? 0) === 0) {
+                  setTriangleError('No uploaded rows found for this project — upload a dataset first.');
+                } else if ((meta.rowsUsed ?? 0) === 0) {
+                  setTriangleError('No rows matched the current filters/date range — try clearing filters or widening the date range.');
+                } else {
+                  setTriangleError(null);
+                }
+              }
+            } catch (e) {
+              setTriangle(null);
+              setTriangleError(e.message || String(e));
+            } finally {
+              setTriangleLoading(false);
+            }
           }}
         />
 
-        {section === 'triangle' ? (
+        {!selectedProjectId ? (
+          <ProjectHomePage
+            projects={projects}
+            loading={loadingProjects}
+            onOpenProject={(id) => setSelectedProjectId(id)}
+            onCreateProject={() => setNewProjectOpen(true)}
+            onEditMapping={(id) => {
+              setSelectedProjectId(id);
+              setUploadOpen(true);
+            }}
+            onUploadFile={(id) => {
+              setSelectedProjectId(id);
+              setUploadOpen(true);
+            }}
+          />
+        ) : (
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
             <FilterPanel
               open={filtersOpen}
@@ -304,6 +417,27 @@ export function AnalyticsWorkspace() {
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                  {!filtersOpen && selectedProjectId ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={triangleLoading}
+                      onClick={() => setFiltersOpen(true)}
+                    >
+                      <Filter className="h-4 w-4" />
+                      Filters
+                    </Button>
+                  ) : null}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={!selectedProjectId || triangleLoading}
+                    onClick={handleResetFilters}
+                  >
+                    Reset filters
+                  </Button>
                   <Button
                     type="button"
                     variant="outline"
@@ -324,6 +458,43 @@ export function AnalyticsWorkspace() {
                     <p className="font-medium">Triangle unavailable</p>
                     <p className="text-xs text-amber-800">{triangleError}</p>
                   </div>
+                </div>
+              ) : null}
+
+              {triangleMeta ? (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                  <div className="flex flex-wrap items-start gap-3">
+                    <div>
+                      <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Triangle diagnostics</p>
+                      <p className="mt-2 text-sm text-slate-900">
+                        Rows uploaded: <strong>{triangleMeta.totalRows ?? 0}</strong>
+                        <span className="mx-1">·</span>
+                        Rows used: <strong>{triangleMeta.rowsUsed ?? 0}</strong>
+                      </p>
+                    </div>
+                    <div className="text-xs text-slate-600">
+                      Inception periods: <strong>{triangleMeta.inceptionPeriods?.length ?? 0}</strong>
+                      <span className="mx-1">·</span>
+                      Delays: <strong>{triangleMeta.delays?.length ?? 0}</strong>
+                    </div>
+                  </div>
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                    <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-600">
+                      <p className="font-semibold text-slate-800">Active build criteria</p>
+                      <p className="mt-2">Granularity: <strong>{triangleMeta.granularity}</strong></p>
+                      <p>Metric: <strong>{triangleMeta.metric}</strong></p>
+                      <p>Scale: <strong>{triangleMeta.scale}</strong></p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-600">
+                      <p className="font-semibold text-slate-800">Current filters</p>
+                      <p className="mt-2">Date range: <strong>{startPeriod || 'any'}</strong> → <strong>{endPeriod || 'any'}</strong></p>
+                      <p>Delay bounds: <strong>{minDelay ?? 'min'}</strong> → <strong>{maxDelay ?? 'max'}</strong></p>
+                      <p>Level 1: <strong>{filters.level1.length || 'all'}</strong>, Level 2: <strong>{filters.level2.length || 'all'}</strong></p>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-xs text-slate-500">
+                    The backend uses stored rows plus your mapping to build a matrix by inception period and delay, then sums values by the selected metric and scale.
+                  </p>
                 </div>
               ) : null}
 
@@ -354,50 +525,9 @@ export function AnalyticsWorkspace() {
               disabled={!selectedProjectId || triangleLoading}
             />
           </div>
-        ) : (
-          <div className="flex-1 overflow-auto p-4 md:p-6">
-            <div className="mx-auto flex max-w-3xl flex-col gap-4">
-              <Card className="border-slate-200 bg-white">
-                <CardHeader>
-                  <CardTitle className="text-lg">Data & column mapping</CardTitle>
-                  <CardDescription>
-                    Upload Excel or CSV, align columns to the engine&apos;s required fields once per project, then import
-                    validated rows. The mapping is stored server-side and reused whenever you reopen this workspace.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="flex flex-wrap gap-3">
-                  <Badge variant={mappingSaved ? 'success' : 'warning'}>
-                    Mapping: {mappingSaved ? 'configured' : 'not configured'}
-                  </Badge>
-                  <Badge variant="outline">Upload supports .csv and .xlsx (see backend limits)</Badge>
-                </CardContent>
-              </Card>
-
-              <Card className="border-slate-200 bg-white">
-                <CardHeader>
-                  <CardTitle className="text-base">Workflow</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm text-slate-600">
-                  <ol className="list-decimal space-y-2 pl-5">
-                    <li>Create a project from the ribbon.</li>
-                    <li>Open Upload — parse your sheet and map each required field to a column.</li>
-                    <li>Validate, then import rows into the project.</li>
-                    <li>
-                      Switch to the Triangle tab; filters and heat-coded cells update instantly without full page reloads.
-                    </li>
-                  </ol>
-                  <Button type="button" onClick={() => setUploadOpen(true)} disabled={!selectedProjectId}>
-                    Open upload & mapping
-                  </Button>
-                  {!selectedProjectId ? (
-                    <p className="text-xs text-amber-700">Select a project first.</p>
-                  ) : null}
-                </CardContent>
-              </Card>
-            </div>
-          </div>
         )}
       </div>
     </TooltipProvider>
   );
 }
+

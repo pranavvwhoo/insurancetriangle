@@ -215,10 +215,10 @@ export function DataMappingDialog({ open, onOpenChange, projectId, onCompleted }
                 <Label>Spreadsheet file (.csv, .xlsx)</Label>
                 <InputLikeFile onChange={handlePickFile} disabled={busy} />
                 {parseResult ? (
-                  <p className="text-xs text-slate-500">
-                    Parsed <strong className="text-slate-300">{parseResult.totalRows}</strong> rows · active sheet{' '}
-                    <strong className="text-slate-300">{parseResult.activeSheet}</strong>
-                  </p>
+                    <p className="text-xs text-slate-600">
+                      Parsed <strong className="text-slate-700">{parseResult.totalRows}</strong> rows · active sheet{' '}
+                      <strong className="text-slate-700">{parseResult.activeSheet}</strong>
+                    </p>
                 ) : null}
               </div>
 
@@ -229,7 +229,7 @@ export function DataMappingDialog({ open, onOpenChange, projectId, onCompleted }
                     id="sheet"
                     value={sheet}
                     onChange={(e) => handleSheetChange(e.target.value)}
-                    className="h-9 w-full max-w-md rounded-md border border-slate-700 bg-slate-950 px-3 text-sm"
+                    className="h-9 w-full max-w-md rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900"
                   >
                     {parseResult.sheetNames.map((s) => (
                       <option key={s} value={s}>
@@ -245,7 +245,7 @@ export function DataMappingDialog({ open, onOpenChange, projectId, onCompleted }
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <Label>Preview (first rows)</Label>
-                  <Button type="button" size="sm" variant="outline" onClick={() => setStep((s) => Math.max(1, s))}>
+                  <Button type="button" size="sm" variant="outline" onClick={() => setStep(2)}>
                     {step < 2 ? 'Continue to mapping →' : ''}
                   </Button>
                 </div>
