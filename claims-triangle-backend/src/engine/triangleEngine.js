@@ -16,14 +16,14 @@ function formatPeriodKey(raw, granularity) {
   return null;
 }
 
-function getInceptionKey(row, mapping, granularity) {
-  return formatPeriodKey(row[col(mapping, 'Risk_Inception_Month')], granularity);
+function getInceptionKey(row, mapping, inceptionGranularity) {
+  return formatPeriodKey(row[col(mapping, 'Risk_Inception_Month')], inceptionGranularity);
 }
 
-function getDelayKey(row, mapping, granularity) {
-  if (granularity === 'monthly') return Number(row[col(mapping, 'Delay_Month')]);
-  if (granularity === 'quarterly') return Number(row[col(mapping, 'Delay_Quarter')]);
-  if (granularity === 'yearly') return Number(row[col(mapping, 'Delay_Year')]);
+function getDelayKey(row, mapping, developmentGranularity) {
+  if (developmentGranularity === 'monthly') return Number(row[col(mapping, 'Delay_Month')]);
+  if (developmentGranularity === 'quarterly') return Number(row[col(mapping, 'Delay_Quarter')]);
+  if (developmentGranularity === 'yearly') return Number(row[col(mapping, 'Delay_Year')]);
 }
 
 function getMetricValue(row, mapping, metric) {
@@ -33,17 +33,24 @@ function getMetricValue(row, mapping, metric) {
   return 0;
 }
 
-function passesGranularityFlag(row, mapping, granularity) {
-  if (granularity === 'monthly') return true;
-  const flagField = granularity === 'quarterly' ? 'Quarter_Flag' : 'Year_Flag';
+function passesGranularityFlag(row, mapping, inceptionGranularity) {
+  if (inceptionGranularity === 'monthly') return true;
+  const flagField = inceptionGranularity === 'quarterly' ? 'Quarter_Flag' : 'Year_Flag';
   return String(row[col(mapping, flagField)] || '').toLowerCase() === 'yes';
 }
 
 function passesFilters(row, mapping, filters) {
-  const { level1 = [], level2 = [] } = filters || {};
-  if (level1.length > 0 && !level1.includes(String(row[col(mapping, 'Level_1')] || '').trim())) return false;
-  if (level2.length > 0 && !level2.includes(String(row[col(mapping, 'Level_2')] || '').trim())) return false;
-  return true;
+  const segments = filters?.segments || [];
+  if (segments.length === 0) return true;
+  
+  const v1 = String(row[col(mapping, 'Level_1')] || '').trim();
+  const v2 = String(row[col(mapping, 'Level_2')] || '').trim();
+  
+  if (v1) {
+    if (segments.includes(`${v1} - Combined`)) return true;
+    if (v2 && segments.includes(`${v1} - ${v2}`)) return true;
+  }
+  return false;
 }
 
 function passesDateRange(row, mapping, startPeriod, endPeriod) {
@@ -59,11 +66,11 @@ function scaleValue(value, scale, decimals) {
 }
 
 function buildTriangle(rows, mapping, params) {
-  const { granularity = 'monthly', metric = 'paid', filters = {}, startPeriod = null,
+  const { inceptionGranularity = 'monthly', developmentGranularity = 'monthly', metric = 'paid', filters = {}, startPeriod = null,
     endPeriod = null, minDelay = null, maxDelay = null, scale = 'units', decimals = 0 } = params;
 
   const filtered = rows.filter(row =>
-    passesGranularityFlag(row, mapping, granularity) &&
+    passesGranularityFlag(row, mapping, inceptionGranularity) &&
     passesFilters(row, mapping, filters) &&
     passesDateRange(row, mapping, startPeriod, endPeriod)
   );
@@ -71,8 +78,8 @@ function buildTriangle(rows, mapping, params) {
   const rawMatrix = {}, inceptionSet = new Set(), delaySet = new Set();
 
   filtered.forEach(row => {
-    const inception = getInceptionKey(row, mapping, granularity);
-    const delay = getDelayKey(row, mapping, granularity);
+    const inception = getInceptionKey(row, mapping, inceptionGranularity);
+    const delay = getDelayKey(row, mapping, developmentGranularity);
     const value = getMetricValue(row, mapping, metric);
     if (inception === null || isNaN(delay)) return;
     if (minDelay !== null && delay < minDelay) return;
@@ -107,17 +114,23 @@ function buildTriangle(rows, mapping, params) {
   return {
     inceptionPeriods, delays, matrix,
     grandTotals: { byInception, byDelay },
-    meta: { granularity, metric, scale, decimals, rowsUsed: filtered.length, totalRows: rows.length },
+    meta: { inceptionGranularity, developmentGranularity, metric, scale, decimals, rowsUsed: filtered.length, totalRows: rows.length },
   };
 }
 
 function getFilterOptions(rows, mapping) {
-  const l1 = new Set(), l2 = new Set();
+  const segmentsSet = new Set();
   rows.forEach(row => {
-    const v1 = row[col(mapping, 'Level_1')]; if (v1) l1.add(String(v1).trim());
-    const v2 = row[col(mapping, 'Level_2')]; if (v2) l2.add(String(v2).trim());
+    const v1 = String(row[col(mapping, 'Level_1')] || '').trim();
+    const v2 = String(row[col(mapping, 'Level_2')] || '').trim();
+    if (v1) {
+      segmentsSet.add(`${v1} - Combined`);
+      if (v2) {
+        segmentsSet.add(`${v1} - ${v2}`);
+      }
+    }
   });
-  return { level1: Array.from(l1).sort(), level2: Array.from(l2).sort() };
+  return { segments: Array.from(segmentsSet).sort() };
 }
 
 module.exports = { buildTriangle, getFilterOptions, formatPeriodKey };

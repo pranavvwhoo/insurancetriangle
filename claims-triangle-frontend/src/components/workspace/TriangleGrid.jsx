@@ -45,7 +45,10 @@ export function TriangleGrid({ triangle, rowSort = 'asc', className = '' }) {
     <div className={`flex min-h-0 min-w-0 flex-1 flex-col gap-2 ${className}`}>
       <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
         <Badge variant="outline">
-          Granularity: <span className="ml-1 text-slate-800">{meta?.granularity}</span>
+          Inception: <span className="ml-1 text-slate-800">{meta?.inceptionGranularity}</span>
+        </Badge>
+        <Badge variant="outline">
+          Development: <span className="ml-1 text-slate-800">{meta?.developmentGranularity}</span>
         </Badge>
         <Badge variant="outline">
           Metric: <span className="ml-1 text-slate-800">{meta?.metric}</span>

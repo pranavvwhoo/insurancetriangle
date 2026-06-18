@@ -30,10 +30,11 @@ export function AnalyticsWorkspace() {
   const [section, setSection] = useState('triangle');
   const [filtersOpen, setFiltersOpen] = useState(true);
 
-  const [filterOptions, setFilterOptions] = useState({ level1: [], level2: [] });
-  const [filters, setFilters] = useState({ level1: [], level2: [] });
+  const [filterOptions, setFilterOptions] = useState({ segments: [] });
+  const [filters, setFilters] = useState({ segments: [] });
 
-  const [granularity, setGranularity] = useState('monthly');
+  const [inceptionGranularity, setInceptionGranularity] = useState('monthly');
+  const [developmentGranularity, setDevelopmentGranularity] = useState('monthly');
   const [metric, setMetric] = useState('paid');
   const [scale, setScale] = useState('units');
   const [decimals, setDecimals] = useState(0);
@@ -76,8 +77,8 @@ export function AnalyticsWorkspace() {
   useEffect(() => {
     if (!selectedProjectId) {
       setDetail(null);
-      setFilters({ level1: [], level2: [] });
-      setFilterOptions({ level1: [], level2: [] });
+      setFilters({ segments: [] });
+      setFilterOptions({ segments: [] });
       setTriangle(null);
       setTriangleError(null);
       setStartPeriod(null);
@@ -94,7 +95,7 @@ export function AnalyticsWorkspace() {
         const [projBundle, vs, fo] = await Promise.all([
           projectsApi.get(selectedProjectId),
           triangleApi.viewState(selectedProjectId).catch(() => ({ viewState: null })),
-          triangleApi.filters(selectedProjectId).catch(() => ({ options: { level1: [], level2: [] } })),
+          triangleApi.filters(selectedProjectId).catch(() => ({ options: { segments: [] } })),
         ]);
         if (cancelled) return;
 
@@ -107,19 +108,19 @@ export function AnalyticsWorkspace() {
             : null
         );
         setMinDelay(null);
-        setFilterOptions(fo.options || { level1: [], level2: [] });
+        setFilterOptions(fo.options || { segments: [] });
 
         const vsData = vs.viewState;
         if (vsData) {
-          setGranularity(vsData.granularity || 'monthly');
+          setInceptionGranularity(vsData.inceptionGranularity || 'monthly');
+          setDevelopmentGranularity(vsData.developmentGranularity || 'monthly');
           setMetric(vsData.metric || 'paid');
           setScale(vsData.scale || 'units');
           setDecimals(clampDecimals(vsData.decimals ?? 0));
           const f = vsData.filters || {};
           setFilters(sanitizeFilters({
-            level1: Array.isArray(f.level1) ? f.level1 : [],
-            level2: Array.isArray(f.level2) ? f.level2 : [],
-          }, fo.options || { level1: [], level2: [] }));
+            segments: Array.isArray(f.segments) ? f.segments : [],
+          }, fo.options || { segments: [] }));
         }
       } catch (e) {
         if (!cancelled) setTriangleError(e.message);
@@ -140,13 +141,13 @@ export function AnalyticsWorkspace() {
       setTriangleError(null);
       try {
         const body = {
-          granularity,
+          inceptionGranularity,
+          developmentGranularity,
           metric,
           scale,
           decimals: clampDecimals(decimals),
           filters: {
-            level1: filters.level1,
-            level2: filters.level2,
+            segments: filters.segments,
           },
           startPeriod,
           endPeriod,
@@ -175,12 +176,12 @@ export function AnalyticsWorkspace() {
   }, [
     selectedProjectId,
     section,
-    granularity,
+    inceptionGranularity,
+    developmentGranularity,
     metric,
     scale,
     decimals,
-    filters.level1,
-    filters.level2,
+    filters.segments,
     startPeriod,
     endPeriod,
     minDelay,
@@ -250,12 +251,10 @@ export function AnalyticsWorkspace() {
   }
 
   function sanitizeFilters(filters, options) {
+    const segmentsOpts = options?.segments || [];
     return {
-      level1: Array.isArray(filters.level1)
-        ? filters.level1.filter((value) => options.level1.includes(value))
-        : [],
-      level2: Array.isArray(filters.level2)
-        ? filters.level2.filter((value) => options.level2.includes(value))
+      segments: Array.isArray(filters.segments)
+        ? filters.segments.filter((value) => segmentsOpts.includes(value))
         : [],
     };
   }
@@ -264,7 +263,7 @@ export function AnalyticsWorkspace() {
     if (!selectedProjectId) return;
     try {
       const fo = await triangleApi.filters(selectedProjectId);
-      const nextOptions = fo.options || { level1: [], level2: [] };
+      const nextOptions = fo.options || { segments: [] };
       setFilterOptions(nextOptions);
       setFilters((current) => sanitizeFilters(current, nextOptions));
     } catch {
@@ -273,7 +272,7 @@ export function AnalyticsWorkspace() {
   }
 
   function handleResetFilters() {
-    setFilters({ level1: [], level2: [] });
+    setFilters({ segments: [] });
     setStartPeriod(null);
     setEndPeriod(null);
     setMinDelay(null);
@@ -286,8 +285,8 @@ export function AnalyticsWorkspace() {
   function handleExitProject() {
     setSelectedProjectId(null);
     setDetail(null);
-    setFilters({ level1: [], level2: [] });
-    setFilterOptions({ level1: [], level2: [] });
+    setFilters({ segments: [] });
+    setFilterOptions({ segments: [] });
     setTriangle(null);
     setTriangleError(null);
     setStartPeriod(null);
@@ -327,13 +326,13 @@ export function AnalyticsWorkspace() {
               setTriangleLoading(true);
               setTriangleError(null);
               const body = {
-                granularity,
+                inceptionGranularity,
+                developmentGranularity,
                 metric,
                 scale,
                 decimals: clampDecimals(decimals),
                 filters: {
-                  level1: filters.level1,
-                  level2: filters.level2,
+                  segments: filters.segments,
                 },
                 startPeriod,
                 endPeriod,
@@ -462,39 +461,21 @@ export function AnalyticsWorkspace() {
               ) : null}
 
               {triangleMeta ? (
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-                  <div className="flex flex-wrap items-start gap-3">
-                    <div>
-                      <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Triangle diagnostics</p>
-                      <p className="mt-2 text-sm text-slate-900">
-                        Rows uploaded: <strong>{triangleMeta.totalRows ?? 0}</strong>
-                        <span className="mx-1">·</span>
-                        Rows used: <strong>{triangleMeta.rowsUsed ?? 0}</strong>
-                      </p>
-                    </div>
-                    <div className="text-xs text-slate-600">
-                      Inception periods: <strong>{triangleMeta.inceptionPeriods?.length ?? 0}</strong>
-                      <span className="mx-1">·</span>
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                  <div className="flex items-center gap-3">
+                    <span className="font-semibold uppercase tracking-wider text-slate-500">Diagnostics</span>
+                    <span>
+                      Periods: <strong>{triangleMeta.inceptionPeriods?.length ?? 0}</strong>
+                    </span>
+                    <span>
                       Delays: <strong>{triangleMeta.delays?.length ?? 0}</strong>
-                    </div>
+                    </span>
                   </div>
-                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                    <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-600">
-                      <p className="font-semibold text-slate-800">Active build criteria</p>
-                      <p className="mt-2">Granularity: <strong>{triangleMeta.granularity}</strong></p>
-                      <p>Metric: <strong>{triangleMeta.metric}</strong></p>
-                      <p>Scale: <strong>{triangleMeta.scale}</strong></p>
-                    </div>
-                    <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-600">
-                      <p className="font-semibold text-slate-800">Current filters</p>
-                      <p className="mt-2">Date range: <strong>{startPeriod || 'any'}</strong> → <strong>{endPeriod || 'any'}</strong></p>
-                      <p>Delay bounds: <strong>{minDelay ?? 'min'}</strong> → <strong>{maxDelay ?? 'max'}</strong></p>
-                      <p>Level 1: <strong>{filters.level1.length || 'all'}</strong>, Level 2: <strong>{filters.level2.length || 'all'}</strong></p>
-                    </div>
+                  <div className="flex items-center gap-3">
+                    <span>
+                      Filters: {filters.segments?.length ? `Segments (${filters.segments.length})` : 'All segments'}
+                    </span>
                   </div>
-                  <p className="mt-3 text-xs text-slate-500">
-                    The backend uses stored rows plus your mapping to build a matrix by inception period and delay, then sums values by the selected metric and scale.
-                  </p>
                 </div>
               ) : null}
 
@@ -502,8 +483,10 @@ export function AnalyticsWorkspace() {
             </main>
 
             <ControlsPanel
-              granularity={granularity}
-              onGranularityChange={setGranularity}
+              inceptionGranularity={inceptionGranularity}
+              onInceptionGranularityChange={setInceptionGranularity}
+              developmentGranularity={developmentGranularity}
+              onDevelopmentGranularityChange={setDevelopmentGranularity}
               metric={metric}
               onMetricChange={setMetric}
               scale={scale}

@@ -28,7 +28,8 @@ router.post('/:projectId', async (req, res, next) => {
     const projectMaxDelay = Number(p.maxDelay);
 
     const engineParams = {
-      granularity: params.granularity || 'monthly',
+      inceptionGranularity: params.inceptionGranularity || 'monthly',
+      developmentGranularity: params.developmentGranularity || 'monthly',
       metric:      params.metric      || 'paid',
       filters:     params.filters     || {},
       scale:       params.scale       || 'units',
@@ -46,7 +47,7 @@ router.post('/:projectId', async (req, res, next) => {
     // Persist view state for next visit
     await supabase.from('view_states').upsert({
       project_id:  projectId,
-      granularity: engineParams.granularity,
+      granularity: engineParams.inceptionGranularity,
       metric:      engineParams.metric,
       filters:     engineParams.filters,
       scale:       engineParams.scale,
@@ -78,6 +79,12 @@ router.get('/:projectId/viewstate', async (req, res, next) => {
     const { data, error } = await supabase
       .from('view_states').select('*').eq('project_id',req.params.projectId).single();
     if (error && error.code !== 'PGRST116') throw error;
+    
+    if (data) {
+      data.inceptionGranularity = data.granularity;
+      data.developmentGranularity = 'monthly';
+    }
+    
     res.json({ success: true, viewState: data || null });
   } catch (err) { next(err); }
 });

@@ -89,11 +89,9 @@ export function FilterPanel({
   onFiltersChange,
   disabled,
 }) {
-  const [q1, setQ1] = useState('');
-  const [q2, setQ2] = useState('');
+  const [q, setQ] = useState('');
 
-  const level1 = options?.level1 || [];
-  const level2 = options?.level2 || [];
+  const segments = options?.segments || [];
 
   return (
     <aside
@@ -124,41 +122,29 @@ export function FilterPanel({
       <div className="min-h-0 flex-1">
         <Card className="m-2 border-slate-200 bg-white shadow-none">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Segmentation</CardTitle>
+            <CardTitle className="text-sm">Segmentation & Category</CardTitle>
             <p className="text-xs text-slate-500">
-              Product names map to <code className="text-slate-600">Level_1</code>; large-claim style
-              categories map to <code className="text-slate-600">Level_2</code>.
+              Select product and claim category combinations. "Combined" includes all categories for that product.
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
             <MultiList
-              idPrefix="l1"
-              label="Product name"
-              hint="Level 1"
-              options={level1}
-              selected={filters.level1}
-              onChange={(next) => onFiltersChange({ ...filters, level1: next })}
-              search={q1}
-              onSearchChange={setQ1}
-            />
-            <Separator />
-            <MultiList
-              idPrefix="l2"
-              label="Large claim category"
-              hint="Level 2"
-              options={level2}
-              selected={filters.level2}
-              onChange={(next) => onFiltersChange({ ...filters, level2: next })}
-              search={q2}
-              onSearchChange={setQ2}
+              idPrefix="segments"
+              label="Segment Combinations"
+              hint="Hierarchy"
+              options={segments}
+              selected={filters.segments || []}
+              onChange={(next) => onFiltersChange({ ...filters, segments: next })}
+              search={q}
+              onSearchChange={setQ}
             />
             <Button
               type="button"
               variant="outline"
               size="sm"
               className="w-full"
-              disabled={disabled || (!filters.level1.length && !filters.level2.length)}
-              onClick={() => onFiltersChange({ level1: [], level2: [] })}
+              disabled={disabled || !(filters.segments?.length)}
+              onClick={() => onFiltersChange({ segments: [] })}
             >
               Clear segment filters
             </Button>

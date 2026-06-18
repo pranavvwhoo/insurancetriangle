@@ -6,8 +6,10 @@ import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export function ControlsPanel({
-  granularity,
-  onGranularityChange,
+  inceptionGranularity,
+  onInceptionGranularityChange,
+  developmentGranularity,
+  onDevelopmentGranularityChange,
   metric,
   onMetricChange,
   scale,
@@ -73,13 +75,10 @@ export function ControlsPanel({
 
       <Card className="border-slate-200 bg-white">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm">Development axis</CardTitle>
-          <CardDescription className="text-xs">
-            Monthly uses every row; quarterly/yearly respect Quarter_Flag / Year_Flag in your file.
-          </CardDescription>
+          <CardTitle className="text-sm">Inception axis</CardTitle>
         </CardHeader>
         <CardContent>
-          <Tabs value={granularity} onValueChange={onGranularityChange} className="w-full">
+          <Tabs value={inceptionGranularity} onValueChange={onInceptionGranularityChange} className="w-full">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="monthly" disabled={disabled}>
                 Monthly
@@ -89,6 +88,21 @@ export function ControlsPanel({
               </TabsTrigger>
               <TabsTrigger value="yearly" disabled={disabled}>
                 Yearly
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </CardContent>
+      </Card>
+
+      <Card className="border-slate-200 bg-white">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Development axis</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Tabs value={developmentGranularity} onValueChange={onDevelopmentGranularityChange} className="w-full">
+            <TabsList className="grid w-full grid-cols-1">
+              <TabsTrigger value="monthly" disabled={disabled}>
+                Monthly
               </TabsTrigger>
             </TabsList>
           </Tabs>
